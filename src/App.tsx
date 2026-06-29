@@ -72,6 +72,44 @@ export default function App() {
     completedTasksCount: 0,
     totalXpGained: 0
   });
+  const ensurePreferencesWithCustomWorkHours = (prefs: any): UserPreferences => {
+    const base = {
+      freeHoursPerDay: 4,
+      dailyLimitMinutes: 240,
+      restDays: [0],
+      schoolHoursStart: '07:00',
+      schoolHoursEnd: '12:00',
+      workHoursStart: '13:00',
+      workHoursEnd: '18:00',
+      customFreeTimes: {
+        segunda: 4, terca: 4, quarta: 4, quinta: 4, sexta: 4, sabado: 6, domingo: 2
+      },
+      customWorkHours: {
+        segunda: { start: '13:00', end: '18:00', active: true },
+        terca: { start: '13:00', end: '18:00', active: true },
+        quarta: { start: '13:00', end: '18:00', active: true },
+        quinta: { start: '13:00', end: '18:00', active: true },
+        sexta: { start: '13:00', end: '18:00', active: true },
+        sabado: { start: '13:00', end: '18:00', active: false },
+        domingo: { start: '13:00', end: '18:00', active: false }
+      }
+    };
+
+    const merged = { ...base, ...prefs };
+    if (!merged.customWorkHours) {
+      merged.customWorkHours = {
+        segunda: { start: merged.workHoursStart, end: merged.workHoursEnd, active: true },
+        terca: { start: merged.workHoursStart, end: merged.workHoursEnd, active: true },
+        quarta: { start: merged.workHoursStart, end: merged.workHoursEnd, active: true },
+        quinta: { start: merged.workHoursStart, end: merged.workHoursEnd, active: true },
+        sexta: { start: merged.workHoursStart, end: merged.workHoursEnd, active: true },
+        sabado: { start: merged.workHoursStart, end: merged.workHoursEnd, active: false },
+        domingo: { start: merged.workHoursStart, end: merged.workHoursEnd, active: false }
+      };
+    }
+    return merged;
+  };
+
   const [preferences, setPreferences] = useState<UserPreferences>({
     freeHoursPerDay: 4,
     dailyLimitMinutes: 240,
@@ -82,6 +120,15 @@ export default function App() {
     workHoursEnd: '18:00',
     customFreeTimes: {
       segunda: 4, terca: 4, quarta: 4, quinta: 4, sexta: 4, sabado: 6, domingo: 2
+    },
+    customWorkHours: {
+      segunda: { start: '13:00', end: '18:00', active: true },
+      terca: { start: '13:00', end: '18:00', active: true },
+      quarta: { start: '13:00', end: '18:00', active: true },
+      quinta: { start: '13:00', end: '18:00', active: true },
+      sexta: { start: '13:00', end: '18:00', active: true },
+      sabado: { start: '13:00', end: '18:00', active: false },
+      domingo: { start: '13:00', end: '18:00', active: false }
     }
   });
   const [achievements, setAchievements] = useState<Achievement[]>([]);
@@ -101,7 +148,7 @@ export default function App() {
         setSchedule(parsed.schedule || {});
         setRewards(parsed.rewards || []);
         setStats(parsed.stats || {});
-        setPreferences(parsed.preferences || {});
+        setPreferences(ensurePreferencesWithCustomWorkHours(parsed.preferences || {}));
         setAchievements(parsed.achievements || []);
         setNotifications(parsed.notifications || []);
         return;
@@ -618,7 +665,7 @@ export default function App() {
         setSchedule(parsed.schedule);
         setRewards(parsed.rewards || []);
         setStats(parsed.stats || stats);
-        setPreferences(parsed.preferences || preferences);
+        setPreferences(ensurePreferencesWithCustomWorkHours(parsed.preferences || preferences));
         setAchievements(parsed.achievements || achievements);
         setNotifications(parsed.notifications || []);
         

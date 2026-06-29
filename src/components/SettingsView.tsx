@@ -52,6 +52,37 @@ export default function SettingsView({
   const [satFree, setSatFree] = useState(preferences.customFreeTimes.sabado);
   const [sunFree, setSunFree] = useState(preferences.customFreeTimes.domingo);
 
+  // Custom daily work hours
+  const [customWorkHours, setCustomWorkHours] = useState(preferences.customWorkHours || {
+    segunda: { start: preferences.workHoursStart || '13:00', end: preferences.workHoursEnd || '18:00', active: true },
+    terca: { start: preferences.workHoursStart || '13:00', end: preferences.workHoursEnd || '18:00', active: true },
+    quarta: { start: preferences.workHoursStart || '13:00', end: preferences.workHoursEnd || '18:00', active: true },
+    quinta: { start: preferences.workHoursStart || '13:00', end: preferences.workHoursEnd || '18:00', active: true },
+    sexta: { start: preferences.workHoursStart || '13:00', end: preferences.workHoursEnd || '18:00', active: true },
+    sabado: { start: preferences.workHoursStart || '13:00', end: preferences.workHoursEnd || '18:00', active: false },
+    domingo: { start: preferences.workHoursStart || '13:00', end: preferences.workHoursEnd || '18:00', active: false }
+  });
+
+  const handleWorkDayToggle = (day: 'segunda' | 'terca' | 'quarta' | 'quinta' | 'sexta' | 'sabado' | 'domingo') => {
+    setCustomWorkHours(prev => ({
+      ...prev,
+      [day]: {
+        ...prev[day],
+        active: !prev[day].active
+      }
+    }));
+  };
+
+  const handleWorkTimeChange = (day: 'segunda' | 'terca' | 'quarta' | 'quinta' | 'sexta' | 'sabado' | 'domingo', field: 'start' | 'end', val: string) => {
+    setCustomWorkHours(prev => ({
+      ...prev,
+      [day]: {
+        ...prev[day],
+        [field]: val
+      }
+    }));
+  };
+
   // Backup state
   const [importText, setImportText] = useState('');
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -95,7 +126,8 @@ export default function SettingsView({
         sexta: friFree,
         sabado: satFree,
         domingo: sunFree
-      }
+      },
+      customWorkHours: customWorkHours
     });
 
     setSavedStatus(true);
@@ -257,7 +289,7 @@ export default function SettingsView({
 
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-md3-secondary flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5" /> Horário Trabalho Padrão
+                  <Clock className="w-3.5 h-3.5" /> Trabalho Padrão (Fallback)
                 </label>
                 <div className="flex gap-2.5 items-center">
                   <input 
@@ -276,6 +308,76 @@ export default function SettingsView({
                     className="w-full text-center px-3 py-2 bg-md3-surface-variant/50 border border-md3-surface-variant rounded-xl text-xs font-mono text-white"
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* Custom Work Hours per day Section */}
+            <div className="space-y-3.5 pt-3.5 border-t border-md3-surface-variant/50">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-md3-primary" />
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider font-mono">Horário de Trabalho Customizado por Dia</h4>
+              </div>
+              <p className="text-[11px] text-md3-outline leading-normal mt-0.5">
+                Como seu horário de trabalho não é fixo, defina os dias em que você trabalha e o respectivo horário de início/fim. O sistema usará esses limites para agendar suas tarefas inteligentes de forma personalizada por dia.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-1">
+                {(['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado', 'domingo'] as const).map((day) => {
+                  const dayLabels: Record<string, string> = {
+                    segunda: 'Segunda-feira',
+                    terca: 'Terça-feira',
+                    quarta: 'Quarta-feira',
+                    quinta: 'Quinta-feira',
+                    sexta: 'Sexta-feira',
+                    sabado: 'Sábado',
+                    domingo: 'Domingo'
+                  };
+                  const workInfo = customWorkHours[day] || { start: '13:00', end: '18:00', active: true };
+                  
+                  return (
+                    <div key={day} className="flex flex-row items-center justify-between gap-3 bg-md3-surface-variant/10 border border-md3-surface-variant/30 p-3 rounded-2xl">
+                      <div className="flex items-center gap-2">
+                        <button
+                          id={`btn-toggle-work-${day}`}
+                          type="button"
+                          onClick={() => handleWorkDayToggle(day)}
+                          className={`w-10 h-6 rounded-full p-1 transition-all border cursor-pointer flex items-center ${
+                            workInfo.active 
+                              ? 'bg-md3-primary border-md3-primary/50 justify-end' 
+                              : 'bg-md3-surface-variant border-md3-outline/20 justify-start'
+                          }`}
+                        >
+                          <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                        </button>
+                        <span className={`text-xs font-semibold ${workInfo.active ? 'text-white' : 'text-md3-outline line-through'}`}>
+                          {dayLabels[day]}
+                        </span>
+                      </div>
+
+                      {workInfo.active ? (
+                        <div className="flex items-center gap-1.5">
+                          <input 
+                            type="text" 
+                            placeholder="13:00"
+                            value={workInfo.start}
+                            onChange={(e) => handleWorkTimeChange(day, 'start', e.target.value)}
+                            className="w-16 text-center px-1.5 py-1 bg-md3-surface border border-md3-surface-variant rounded-lg text-[11px] font-mono text-white"
+                          />
+                          <span className="text-[10px] text-md3-outline font-mono">às</span>
+                          <input 
+                            type="text" 
+                            placeholder="18:00"
+                            value={workInfo.end}
+                            onChange={(e) => handleWorkTimeChange(day, 'end', e.target.value)}
+                            className="w-16 text-center px-1.5 py-1 bg-md3-surface border border-md3-surface-variant rounded-lg text-[11px] font-mono text-white"
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-md3-outline font-mono italic">Folga / Sem Trabalho</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

@@ -107,6 +107,15 @@ export interface UserPreferences {
     sabado: number;
     domingo: number;
   };
+  customWorkHours?: {
+    segunda: { start: string; end: string; active: boolean };
+    terca: { start: string; end: string; active: boolean };
+    quarta: { start: string; end: string; active: boolean };
+    quinta: { start: string; end: string; active: boolean };
+    sexta: { start: string; end: string; active: boolean };
+    sabado: { start: string; end: string; active: boolean };
+    domingo: { start: string; end: string; active: boolean };
+  };
 }
 
 export interface Achievement {

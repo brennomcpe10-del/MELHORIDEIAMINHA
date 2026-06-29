@@ -120,11 +120,21 @@ function getDailyFreeIntervals(
   // Parse dos limites de escola e trabalho
   const schoolStart = hhmmToMinutes(preferences.schoolHoursStart || "07:00");
   const schoolEnd = hhmmToMinutes(preferences.schoolHoursEnd || "12:00");
-  const workStart = hhmmToMinutes(preferences.workHoursStart || "13:00");
-  const workEnd = hhmmToMinutes(preferences.workHoursEnd || "18:00");
+
+  let hasWork = false;
+  let workStart = hhmmToMinutes(preferences.workHoursStart || "13:00");
+  let workEnd = hhmmToMinutes(preferences.workHoursEnd || "18:00");
+
+  if (preferences.customWorkHours && preferences.customWorkHours[weekday as keyof typeof preferences.customWorkHours]) {
+    const dailyWork = preferences.customWorkHours[weekday as keyof typeof preferences.customWorkHours];
+    hasWork = dailyWork.active;
+    workStart = hhmmToMinutes(dailyWork.start);
+    workEnd = hhmmToMinutes(dailyWork.end);
+  } else {
+    hasWork = weekday !== 'sabado' && weekday !== 'domingo';
+  }
 
   const hasSchool = schedule[weekday as keyof SchoolSchedule]?.length > 0;
-  const hasWork = weekday !== 'sabado' && weekday !== 'domingo';
 
   // Constrói minutos não-bloqueados no período de vigília (06:00 a 22:00)
   const unblockedMinutes: number[] = [];
