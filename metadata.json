@@ -1,0 +1,6 @@
+{
+  "name": "FocusFlow",
+  "description": "Assistente pessoal inteligente que organiza automaticamente sua rotina escolar, estudos e criação de conteúdo.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
