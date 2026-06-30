@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type TaskCategory = 'escola' | 'trabalho' | 'conteudo' | 'pessoal' | 'estudos';
+export type TaskCategory = 'escola' | 'trabalho' | 'conteudo' | 'pessoal' | 'estudos' | 'live';
 
 export type TaskPriority = 'baixa' | 'media' | 'alta';
 
@@ -30,6 +30,14 @@ export interface Task {
   originSource?: 'manual' | 'escola_atividade' | 'conteudo_video' | 'estudos_modelo';
   videoId?: string; // Se vinculado a um vídeo
   templateId?: string; // Se vinculado a um modelo de estudo
+  
+  // Propriedades para Lives
+  liveGameOrTheme?: string;
+  livePlatform?: 'YouTube' | 'Twitch' | 'TikTok' | 'Personalizada';
+  livePlatformCustom?: string;
+  liveRecurrence?: 'nao' | 'diaria' | 'segunda_sexta' | 'semanal' | 'mensal' | 'personalizado';
+  liveRecurrenceDays?: number[]; // [0 = dom, 1 = seg, 2 = ter, 3 = qua, 4 = qui, 5 = sex, 6 = sab]
+  liveSeriesId?: string;
 }
 
 export interface SchoolSubject {

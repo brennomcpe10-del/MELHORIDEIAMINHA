@@ -13,7 +13,8 @@ import {
   MoveRight,
   Sparkles,
   Info,
-  CalendarDays
+  CalendarDays,
+  Radio
 } from 'lucide-react';
 import { Task, SchoolSubject } from '../types';
 import { getWeekdayName, formatDateStr, getUpcomingDates } from '../utils/scheduler';
@@ -85,7 +86,9 @@ export default function CalendarView({
         className={`p-3 rounded-xl border text-left space-y-2 cursor-grab transition-all select-none group relative ${
           task.completed 
             ? 'bg-md3-surface-variant/10 border-md3-surface-variant/20 opacity-40' 
-            : 'bg-md3-surface-variant/50 border-md3-surface-variant hover:border-md3-primary/50 hover:bg-md3-surface-variant/80'
+            : task.category === 'live'
+              ? 'bg-purple-950/40 border-purple-500/50 hover:border-purple-400 hover:bg-purple-950/60'
+              : 'bg-md3-surface-variant/50 border-md3-surface-variant hover:border-md3-primary/50 hover:bg-md3-surface-variant/80'
         }`}
       >
         <div className="flex items-start justify-between gap-1.5">
@@ -102,8 +105,13 @@ export default function CalendarView({
               {subj.name}
             </span>
           ) : (
-            <span className="px-1 py-0.5 rounded bg-md3-surface border border-md3-surface-variant font-mono">
-              {task.category}
+            <span className={`px-1 py-0.5 rounded font-mono border flex items-center gap-0.5 ${
+              task.category === 'live'
+                ? 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+                : 'bg-md3-surface border-md3-surface-variant'
+            }`}>
+              {task.category === 'live' && <Radio className="w-2.5 h-2.5 text-purple-400 animate-pulse" />}
+              {task.category === 'live' ? 'Live' : task.category}
             </span>
           )}
 

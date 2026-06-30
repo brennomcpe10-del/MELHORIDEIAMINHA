@@ -35,7 +35,8 @@ import {
   generateAIRecommendations, 
   getDefaultSubjects, 
   getDefaultAchievements,
-  formatDateStr
+  formatDateStr,
+  generateLiveOccurrences
 } from './utils/scheduler';
 
 // Sub-views
@@ -443,6 +444,48 @@ export default function App() {
     handleTriggerReschedule(updated, preferences, schedule, subjects);
   };
 
+  const handleDeleteTaskSeries = (seriesId: string, fromDate: string) => {
+    const updated = tasks.filter(t => !(t.liveSeriesId === seriesId && t.scheduledDate && t.scheduledDate >= fromDate));
+    setTasks(updated);
+    handleTriggerReschedule(updated, preferences, schedule, subjects);
+    showToast('Série Removida', 'As ocorrências futuras da série de lives foram canceladas.', 'info');
+  };
+
+  const handleEditTaskSeries = (seriesId: string, fromDate: string, updatedFields: any) => {
+    const filteredTasks = tasks.filter(t => !(t.liveSeriesId === seriesId && t.scheduledDate && t.scheduledDate >= fromDate));
+    
+    const newOccurrences = generateLiveOccurrences(
+      updatedFields.name.replace(/^🔴 Live:\s*/, ''),
+      updatedFields.liveGameOrTheme,
+      updatedFields.livePlatform,
+      updatedFields.livePlatformCustom || '',
+      fromDate,
+      updatedFields.scheduledTime,
+      updatedFields.estimatedMinutes,
+      updatedFields.priority,
+      updatedFields.notes || '',
+      updatedFields.liveRecurrence,
+      updatedFields.liveRecurrenceDays || []
+    );
+
+    const newOccurrencesWithSameSeriesId = newOccurrences.map(t => ({
+      ...t,
+      liveSeriesId: seriesId
+    }));
+
+    const finalTasks = [...filteredTasks, ...newOccurrencesWithSameSeriesId];
+    setTasks(finalTasks);
+    handleTriggerReschedule(finalTasks, preferences, schedule, subjects);
+    showToast('Série Atualizada', 'As ocorrências futuras da série de lives foram atualizadas.', 'success');
+  };
+
+  const handleEditTask = (taskId: string, updatedFields: Partial<Task>) => {
+    const updated = tasks.map(t => t.id === taskId ? { ...t, ...updatedFields } : t);
+    setTasks(updated);
+    handleTriggerReschedule(updated, preferences, schedule, subjects);
+    showToast('Tarefa Atualizada', 'A tarefa foi atualizada com sucesso!', 'success');
+  };
+
   // 6. ADICIONA MÚLTIPLAS TAREFAS (Chamado pelos wizards da escola, vídeo, estudos)
   const handleAddTasks = (newTasks: Task[]) => {
     const updatedTasksList = [...tasks, ...newTasks];
@@ -764,6 +807,9 @@ export default function App() {
                 onAddTasks={handleAddTasks}
                 onToggleTask={handleToggleTask}
                 onDeleteTask={handleDeleteTask}
+                onDeleteTaskSeries={handleDeleteTaskSeries}
+                onEditTaskSeries={handleEditTaskSeries}
+                onEditTask={handleEditTask}
                 onTriggerReschedule={() => handleTriggerReschedule(tasks, preferences, schedule, subjects)}
               />
             )}

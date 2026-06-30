@@ -18,10 +18,11 @@ import {
   Clock,
   Sparkles,
   HelpCircle,
-  AlertCircle
+  AlertCircle,
+  Radio
 } from 'lucide-react';
 import { Task, TaskCategory, TaskPriority, TaskDifficulty, SchoolSubject, SchoolSchedule } from '../types';
-import { findNextClassDate } from '../utils/scheduler';
+import { findNextClassDate, generateLiveOccurrences } from '../utils/scheduler';
 
 interface TasksViewProps {
   tasks: Task[];
@@ -30,6 +31,9 @@ interface TasksViewProps {
   onAddTasks: (newTasks: Task[]) => void;
   onToggleTask: (taskId: string) => void;
   onDeleteTask: (taskId: string) => void;
+  onDeleteTaskSeries?: (seriesId: string, fromDate: string) => void;
+  onEditTaskSeries?: (seriesId: string, fromDate: string, updatedFields: any) => void;
+  onEditTask?: (taskId: string, updatedFields: Partial<Task>) => void;
   onTriggerReschedule: () => void;
 }
 
@@ -40,17 +44,41 @@ export default function TasksView({
   onAddTasks,
   onToggleTask,
   onDeleteTask,
+  onDeleteTaskSeries,
+  onEditTaskSeries,
+  onEditTask,
   onTriggerReschedule
 }: TasksViewProps) {
   // Modal toggle states
   const [showSchoolModal, setShowSchoolModal] = useState(false);
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [showManualModal, setShowManualModal] = useState(false);
+  const [showLiveModal, setShowLiveModal] = useState(false);
+
+  // Deletion modal for Lives
+  const [deleteConfirmLive, setDeleteConfirmLive] = useState<Task | null>(null);
+
+  // Editing states for Lives
+  const [editingLive, setEditingLive] = useState<Task | null>(null);
+  const [isSeriesEdit, setIsSeriesEdit] = useState(false);
 
   // Search & Filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('todos');
   const [selectedPriority, setSelectedPriority] = useState<string>('todos');
+
+  // Form states - Live Task
+  const [liveTitle, setLiveTitle] = useState('');
+  const [liveTheme, setLiveTheme] = useState('');
+  const [livePlatform, setLivePlatform] = useState<'YouTube' | 'Twitch' | 'TikTok' | 'Personalizada'>('YouTube');
+  const [livePlatformCustom, setLivePlatformCustom] = useState('');
+  const [liveDate, setLiveDate] = useState(new Date().toISOString().split('T')[0]);
+  const [liveStartTime, setLiveStartTime] = useState('18:00');
+  const [liveDuration, setLiveDuration] = useState('60'); // minutes
+  const [livePriority, setLivePriority] = useState<TaskPriority>('media');
+  const [liveNotes, setLiveNotes] = useState('');
+  const [liveRecurrenceType, setLiveRecurrenceType] = useState<'nao' | 'diaria' | 'segunda_sexta' | 'semanal' | 'mensal' | 'personalizado'>('nao');
+  const [liveRecurrenceDays, setLiveRecurrenceDays] = useState<number[]>([1, 3, 5]); // default Seg, Qua, Sex
 
   // Form states - School Activity
   const [schoolSubjectId, setSchoolSubjectId] = useState('');
@@ -537,6 +565,101 @@ export default function TasksView({
     setManualNotes('');
   };
 
+  const handleToggleRecurrenceDay = (dayIndex: number) => {
+    if (liveRecurrenceDays.includes(dayIndex)) {
+      setLiveRecurrenceDays(liveRecurrenceDays.filter(d => d !== dayIndex));
+    } else {
+      setLiveRecurrenceDays([...liveRecurrenceDays, dayIndex]);
+    }
+  };
+
+  const handleCreateLive = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!liveTitle) return;
+
+    const baseDate = liveDate || new Date().toISOString().split('T')[0];
+    const durationMin = parseInt(liveDuration) || 60;
+
+    if (editingLive) {
+      const updatedFields = {
+        name: `🔴 Live: ${liveTitle}`,
+        liveGameOrTheme: liveTheme,
+        livePlatform: livePlatform,
+        livePlatformCustom: livePlatform === 'Personalizada' ? livePlatformCustom : '',
+        scheduledTime: liveStartTime,
+        estimatedMinutes: durationMin,
+        priority: livePriority,
+        notes: liveNotes,
+        liveRecurrence: liveRecurrenceType,
+        liveRecurrenceDays: liveRecurrenceDays,
+        dueDate: baseDate,
+        scheduledDate: baseDate,
+        xp: Math.round(durationMin * 0.7)
+      };
+
+      if (isSeriesEdit && editingLive.liveSeriesId && onEditTaskSeries) {
+        onEditTaskSeries(editingLive.liveSeriesId, baseDate, updatedFields);
+      } else if (onEditTask) {
+        onEditTask(editingLive.id, updatedFields);
+      }
+
+      setEditingLive(null);
+      setShowLiveModal(false);
+      resetLiveForm();
+      return;
+    }
+
+    const newLives = generateLiveOccurrences(
+      liveTitle,
+      liveTheme,
+      livePlatform,
+      livePlatformCustom,
+      baseDate,
+      liveStartTime,
+      durationMin,
+      livePriority,
+      liveNotes,
+      liveRecurrenceType,
+      liveRecurrenceDays
+    );
+
+    onAddTasks(newLives);
+    setShowLiveModal(false);
+    resetLiveForm();
+  };
+
+  const resetLiveForm = () => {
+    setLiveTitle('');
+    setLiveTheme('');
+    setLivePlatform('YouTube');
+    setLivePlatformCustom('');
+    setLiveDate(new Date().toISOString().split('T')[0]);
+    setLiveStartTime('18:00');
+    setLiveDuration('60');
+    setLivePriority('media');
+    setLiveNotes('');
+    setLiveRecurrenceType('nao');
+    setLiveRecurrenceDays([1, 3, 5]);
+    setIsSeriesEdit(false);
+  };
+
+  const handleStartEditLive = (task: Task) => {
+    setEditingLive(task);
+    setLiveTitle(task.name.replace(/^🔴 Live:\s*/, ''));
+    setLiveTheme(task.liveGameOrTheme || '');
+    setLivePlatform(task.livePlatform || 'YouTube');
+    setLivePlatformCustom(task.livePlatformCustom || '');
+    setLiveDate(task.scheduledDate || task.dueDate);
+    setLiveStartTime(task.scheduledTime || '18:00');
+    setLiveDuration(String(task.estimatedMinutes));
+    setLivePriority(task.priority);
+    setLiveNotes(task.notes || '');
+    setLiveRecurrenceType(task.liveRecurrence || 'nao');
+    setLiveRecurrenceDays(task.liveRecurrenceDays || [1, 3, 5]);
+    setIsSeriesEdit(false);
+    setShowLiveModal(true);
+  };
+
   // Filtragem e busca de tarefas
   const filteredTasks = tasks.filter((t) => {
     const matchesSearch = t.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -574,6 +697,18 @@ export default function TasksView({
           >
             <Video className="w-4 h-4" />
             <span>Novo Vídeo</span>
+          </button>
+
+          <button 
+            id="btn-live-modal"
+            onClick={() => {
+              resetLiveForm();
+              setShowLiveModal(true);
+            }}
+            className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-xl transition-all font-semibold text-xs cursor-pointer"
+          >
+            <Radio className="w-4 h-4 text-purple-400" />
+            <span>Nova Live</span>
           </button>
 
           <button 
@@ -648,7 +783,8 @@ export default function TasksView({
             { id: 'conteudo', label: 'Conteúdo' },
             { id: 'estudos', label: 'Estudos' },
             { id: 'trabalho', label: 'Trabalho' },
-            { id: 'pessoal', label: 'Pessoal' }
+            { id: 'pessoal', label: 'Pessoal' },
+            { id: 'live', label: 'Lives' }
           ].map((cat) => (
             <button
               id={`filter-cat-${cat.id}`}
@@ -718,7 +854,12 @@ export default function TasksView({
 
                       {/* Details row */}
                       <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-md3-outline">
-                        <span className="capitalize font-medium text-white/70 bg-md3-surface-variant px-2 py-0.5 rounded-md">
+                        <span className={`capitalize font-medium px-2 py-0.5 rounded-md flex items-center gap-1 ${
+                          task.category === 'live' 
+                            ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30 font-mono' 
+                            : 'text-white/70 bg-md3-surface-variant'
+                        }`}>
+                          {task.category === 'live' && <Radio className="w-3 h-3 text-purple-400 animate-pulse" />}
                           {task.category}
                         </span>
 
@@ -758,9 +899,25 @@ export default function TasksView({
                   </div>
 
                   <div className="flex items-center gap-2 w-full md:w-auto justify-end border-t md:border-t-0 border-md3-surface-variant/30 pt-3 md:pt-0">
+                    {task.category === 'live' && (
+                      <button
+                        id={`edit-live-btn-${task.id}`}
+                        title="Editar Live"
+                        onClick={() => handleStartEditLive(task)}
+                        className="p-2 bg-md3-surface-variant/50 hover:bg-purple-500/20 hover:text-purple-400 text-md3-outline rounded-xl transition-all cursor-pointer"
+                      >
+                        <SlidersHorizontal className="w-4 h-4" />
+                      </button>
+                    )}
                     <button 
                       id={`delete-task-btn-${task.id}`}
-                      onClick={() => onDeleteTask(task.id)}
+                      onClick={() => {
+                        if (task.category === 'live' && task.liveSeriesId) {
+                          setDeleteConfirmLive(task);
+                        } else {
+                          onDeleteTask(task.id);
+                        }
+                      }}
                       className="p-2 bg-md3-surface-variant/50 hover:bg-red-500/20 hover:text-red-400 text-md3-outline rounded-xl transition-all cursor-pointer"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -1178,6 +1335,307 @@ export default function TasksView({
         </div>
       )}
 
-    </div>
-  );
-}
+      {/* MODAL 4: Live Task Creation & Editing */}
+      {showLiveModal && (
+        <div id="modal-live-task" className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-md3-surface border border-md3-surface-variant rounded-3xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="px-6 py-5 border-b border-md3-surface-variant flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Radio className="w-5 h-5 text-purple-400 animate-pulse" />
+                <h3 className="font-display font-bold text-lg text-white">
+                  {editingLive ? 'Editar Live Transmissão' : 'Cadastrar Nova Live'}
+                </h3>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowLiveModal(false);
+                  setEditingLive(null);
+                  resetLiveForm();
+                }}
+                className="text-md3-outline hover:text-white font-semibold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateLive} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              
+              {/* If editing series, show choice */}
+              {editingLive && editingLive.liveSeriesId && (
+                <div className="bg-purple-500/5 border border-purple-500/20 p-3.5 rounded-xl space-y-2">
+                  <p className="text-xs font-semibold text-purple-400">Esta live faz parte de uma série recorrente.</p>
+                  <p className="text-[11px] text-md3-outline">Como deseja aplicar as edições feitas abaixo?</p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsSeriesEdit(false)}
+                      className={`flex-1 py-1.5 px-3 rounded-lg text-[11px] font-semibold transition-all border ${
+                        !isSeriesEdit 
+                          ? 'bg-purple-500 text-white border-purple-500' 
+                          : 'bg-md3-surface border-md3-surface-variant text-md3-secondary hover:text-white'
+                      }`}
+                    >
+                      Apenas esta ocorrência
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsSeriesEdit(true)}
+                      className={`flex-1 py-1.5 px-3 rounded-lg text-[11px] font-semibold transition-all border ${
+                        isSeriesEdit 
+                          ? 'bg-purple-500 text-white border-purple-500' 
+                          : 'bg-md3-surface border-md3-surface-variant text-md3-secondary hover:text-white'
+                      }`}
+                    >
+                      Toda a série (futuras)
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Title */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-md3-secondary">Título da Live</label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="Ex: Gameplay de Minecraft, Conversa Fiada, etc."
+                  value={liveTitle}
+                  onChange={(e) => setLiveTitle(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-md3-surface-variant/60 border border-md3-surface-variant rounded-xl text-xs text-white focus:outline-none focus:border-md3-primary"
+                />
+              </div>
+
+              {/* Game/Theme & Platform */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-md3-secondary">Jogo ou Tema</label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="Ex: Valorant / Programação"
+                    value={liveTheme}
+                    onChange={(e) => setLiveTheme(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-md3-surface-variant/60 border border-md3-surface-variant rounded-xl text-xs text-white focus:outline-none focus:border-md3-primary"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-md3-secondary">Plataforma</label>
+                  <select
+                    value={livePlatform}
+                    onChange={(e) => setLivePlatform(e.target.value as any)}
+                    className="w-full px-2 py-2.5 bg-md3-surface-variant/60 border border-md3-surface-variant rounded-xl text-xs text-white focus:outline-none"
+                  >
+                    <option value="YouTube">YouTube</option>
+                    <option value="Twitch">Twitch</option>
+                    <option value="TikTok">TikTok</option>
+                    <option value="Personalizada">Personalizada</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Custom Platform Input */}
+              {livePlatform === 'Personalizada' && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-md3-secondary">Nome da Plataforma Personalizada</label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="Ex: Instagram, Kick, Trovo"
+                    value={livePlatformCustom}
+                    onChange={(e) => setLivePlatformCustom(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-md3-surface-variant/60 border border-md3-surface-variant rounded-xl text-xs text-white focus:outline-none focus:border-md3-primary"
+                  />
+                </div>
+              )}
+
+              {/* Date, Time & Duration */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-md3-secondary">Data de Início</label>
+                  <input 
+                    type="date" 
+                    required
+                    value={liveDate}
+                    onChange={(e) => setLiveDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-md3-surface-variant/60 border border-md3-surface-variant rounded-xl text-xs text-white"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-md3-secondary">Horário de Início</label>
+                  <input 
+                    type="time" 
+                    required
+                    value={liveStartTime}
+                    onChange={(e) => setLiveStartTime(e.target.value)}
+                    className="w-full px-3 py-2 bg-md3-surface-variant/60 border border-md3-surface-variant rounded-xl text-xs text-white"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-md3-secondary">Duração (minutos)</label>
+                  <input 
+                    type="number" 
+                    min="15"
+                    max="600"
+                    required
+                    value={liveDuration}
+                    onChange={(e) => setLiveDuration(e.target.value)}
+                    className="w-full px-3 py-2 bg-md3-surface-variant/60 border border-md3-surface-variant rounded-xl text-xs text-white"
+                  />
+                </div>
+              </div>
+
+              {/* Priority and Repetition */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-md3-secondary">Prioridade</label>
+                  <select
+                    value={livePriority}
+                    onChange={(e) => setLivePriority(e.target.value as TaskPriority)}
+                    className="w-full px-2 py-2.5 bg-md3-surface-variant/60 border border-md3-surface-variant rounded-xl text-xs text-white focus:outline-none"
+                  >
+                    <option value="baixa">Baixa</option>
+                    <option value="media">Média</option>
+                    <option value="alta">Alta</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-md3-secondary">Repetição / Recorrência</label>
+                  <select
+                    value={liveRecurrenceType}
+                    onChange={(e) => setLiveRecurrenceType(e.target.value as any)}
+                    className="w-full px-2 py-2.5 bg-md3-surface-variant/60 border border-md3-surface-variant rounded-xl text-xs text-white focus:outline-none"
+                  >
+                    <option value="nao">Não repetir</option>
+                    <option value="diaria">Todos os dias</option>
+                    <option value="segunda_sexta">Segunda a sexta</option>
+                    <option value="semanal">Toda semana</option>
+                    <option value="mensal">Todo mês</option>
+                    <option value="personalizado">Personalizado</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Weekday checkboxes for Custom/Personalizado recurrence */}
+              {liveRecurrenceType === 'personalizado' && (
+                <div className="bg-md3-surface-variant/30 border border-md3-surface-variant p-3.5 rounded-2xl space-y-2">
+                  <label className="text-xs font-semibold text-md3-secondary block">Selecione os dias da semana:</label>
+                  <div className="grid grid-cols-7 gap-1.5">
+                    {[
+                      { id: 1, label: 'Seg' },
+                      { id: 2, label: 'Ter' },
+                      { id: 3, label: 'Qua' },
+                      { id: 4, label: 'Qui' },
+                      { id: 5, label: 'Sex' },
+                      { id: 6, label: 'Sáb' },
+                      { id: 0, label: 'Dom' }
+                    ].map(day => (
+                      <button
+                        key={day.id}
+                        type="button"
+                        onClick={() => handleToggleRecurrenceDay(day.id)}
+                        className={`py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                          liveRecurrenceDays.includes(day.id)
+                            ? 'bg-purple-500 text-white font-bold shadow-sm'
+                            : 'bg-md3-surface border border-md3-surface-variant/60 text-md3-secondary hover:text-white'
+                        }`}
+                      >
+                        {day.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Notes */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-md3-secondary">Descrição (opcional)</label>
+                <textarea 
+                  rows={2}
+                  placeholder="Escreva links ou anotações extras sobre o conteúdo ou cronograma da live..."
+                  value={liveNotes}
+                  onChange={(e) => setLiveNotes(e.target.value)}
+                  className="w-full px-3 py-2 bg-md3-surface-variant/60 border border-md3-surface-variant rounded-xl text-xs text-white placeholder-md3-outline font-sans"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-md3-surface-variant flex gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLiveModal(false);
+                    setEditingLive(null);
+                    resetLiveForm();
+                  }}
+                  className="flex-1 py-2.5 bg-md3-surface-variant hover:bg-md3-outline/20 text-white rounded-xl text-xs font-semibold transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-purple-900/10"
+                >
+                  {editingLive ? 'Salvar Alterações' : 'Confirmar Live'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: Delete Live Series Confirmation */}
+      {deleteConfirmLive && (
+        <div id="modal-delete-live-series" className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-md3-surface border border-md3-surface-variant rounded-3xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6 text-center space-y-4">
+              <div className="mx-auto w-12 h-12 bg-red-500/15 text-red-400 rounded-full flex items-center justify-center animate-pulse">
+                <Trash2 className="w-6 h-6 animate-pulse" />
+              </div>
+              <div className="space-y-1.5">
+                <h3 className="text-lg font-bold text-white">Cancelar Transmissão</h3>
+                <p className="text-xs text-md3-outline leading-relaxed">
+                  A live <strong className="text-white">"{deleteConfirmLive.name}"</strong> faz parte de uma série recorrente. Como você deseja excluí-la?
+                </p>
+              </div>
+
+              <div className="space-y-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onDeleteTask(deleteConfirmLive.id);
+                    setDeleteConfirmLive(null);
+                  }}
+                  className="w-full py-2.5 bg-md3-surface-variant hover:bg-white/10 text-white rounded-xl text-xs font-semibold transition-all border border-md3-surface-variant cursor-pointer"
+                >
+                  Excluir apenas esta ocorrência
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onDeleteTaskSeries && deleteConfirmLive.liveSeriesId && deleteConfirmLive.scheduledDate) {
+                      onDeleteTaskSeries(deleteConfirmLive.liveSeriesId, deleteConfirmLive.scheduledDate);
+                    } else {
+                      onDeleteTask(deleteConfirmLive.id);
+                    }
+                    setDeleteConfirmLive(null);
+                  }}
+                  className="w-full py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  Excluir toda a série (esta e futuras)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmLive(null)}
+                  className="w-full py-2 bg-transparent text-md3-outline hover:text-white text-xs font-semibold cursor-pointer"
+                >
+                  Voltar / Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      </div>
+    );
+  }

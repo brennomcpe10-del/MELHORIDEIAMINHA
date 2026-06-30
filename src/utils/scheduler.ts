@@ -95,7 +95,8 @@ function getDailyFreeIntervals(
   dateStr: string,
   preferences: UserPreferences,
   schedule: SchoolSchedule,
-  completedTasks: Task[]
+  completedTasks: Task[],
+  allTasks: Task[] = []
 ): { start: number; end: number }[] {
   const weekday = getWeekdayName(dateStr);
   const dayIndex = WEEKDAYS.indexOf(weekday);
@@ -136,12 +137,21 @@ function getDailyFreeIntervals(
 
   const hasSchool = schedule[weekday as keyof SchoolSchedule]?.length > 0;
 
+  // Encontra as lives marcadas para este dia
+  const liveTasksForDay = allTasks.filter(t => t.category === 'live' && t.scheduledDate === dateStr);
+
   // Constrói minutos não-bloqueados no período de vigília (06:00 a 22:00)
   const unblockedMinutes: number[] = [];
   for (let m = 360; m < 1320; m++) {
     const inSchool = hasSchool && (m >= schoolStart && m < schoolEnd);
     const inWork = hasWork && (m >= workStart && m < workEnd);
-    if (!inSchool && !inWork) {
+    const inLive = liveTasksForDay.some(live => {
+      const liveStart = hhmmToMinutes(live.scheduledTime || "00:00");
+      const liveEnd = liveStart + live.estimatedMinutes;
+      return m >= liveStart && m < liveEnd;
+    });
+
+    if (!inSchool && !inWork && !inLive) {
       unblockedMinutes.push(m);
     }
   }
@@ -252,9 +262,13 @@ export function autoScheduleTasks(
   subjects: SchoolSubject[],
   todayStr: string
 ): Task[] {
-  // Filtra as tarefas completadas e ativas
-  const completedTasks = tasks.filter(t => t.completed);
-  const activeTasks = tasks.filter(t => !t.completed);
+  // Separa as lives (já estão agendadas no momento da criação/edição)
+  const liveTasks = tasks.filter(t => t.category === 'live');
+  const nonLiveTasks = tasks.filter(t => t.category !== 'live');
+
+  // Filtra as tarefas completadas e ativas (não-lives)
+  const completedTasks = nonLiveTasks.filter(t => t.completed);
+  const activeTasks = nonLiveTasks.filter(t => !t.completed);
 
   // 1. Reconstituição de tarefas ativas que foram divididas anteriormente
   const partPattern = /(.+)-part-\d+$/;
@@ -318,7 +332,7 @@ export function autoScheduleTasks(
   const dailyFreeIntervals: { [date: string]: { start: number; end: number }[] } = {};
 
   for (const dateStr of futureDates) {
-    dailyFreeIntervals[dateStr] = getDailyFreeIntervals(dateStr, preferences, schedule, completedTasks);
+    dailyFreeIntervals[dateStr] = getDailyFreeIntervals(dateStr, preferences, schedule, completedTasks, tasks);
   }
 
   const scheduledActiveTasks: Task[] = [];
@@ -370,7 +384,7 @@ export function autoScheduleTasks(
     }
   }
 
-  return [...completedTasks, ...scheduledActiveTasks];
+  return [...completedTasks, ...scheduledActiveTasks, ...liveTasks];
 }
 
 /**
@@ -517,4 +531,98 @@ export function getDefaultAchievements(): any[] {
     { id: 'ach-7', title: 'Super Sequência', description: 'Alcance uma sequência de 3 dias ativos', icon: 'Zap', unlocked: false },
     { id: 'ach-8', title: 'Maratona Acadêmica', description: 'Conclua 5 tarefas de estudos em uma semana', icon: 'BookOpen', unlocked: false },
   ];
+}
+
+export function generateLiveOccurrences(
+  title: string,
+  theme: string,
+  platform: 'YouTube' | 'Twitch' | 'TikTok' | 'Personalizada',
+  platformCustom: string,
+  startDateStr: string,
+  startTime: string,
+  duration: number,
+  priority: 'baixa' | 'media' | 'alta',
+  notes: string,
+  recurrenceType: 'nao' | 'diaria' | 'segunda_sexta' | 'semanal' | 'mensal' | 'personalizado',
+  customDays: number[]
+): Task[] {
+  const list: Task[] = [];
+  const start = new Date(startDateStr + 'T12:00:00');
+  const baseDayOfWeek = start.getDay();
+  const baseDayOfMonth = start.getDate();
+  const seriesId = `live-series-${Date.now()}`;
+
+  // Se não repetir, gera apenas 1 ocorrência
+  if (recurrenceType === 'nao') {
+    list.push(createLiveTask(startDateStr, title, theme, platform, platformCustom, startTime, duration, priority, notes, seriesId, recurrenceType, customDays));
+    return list;
+  }
+
+  // Se repetir, gera para os próximos 30 dias a partir da data de início
+  for (let i = 0; i < 30; i++) {
+    const targetDate = new Date(start);
+    targetDate.setDate(start.getDate() + i);
+    const dateStr = formatDateStr(targetDate);
+    const dayOfWeek = targetDate.getDay();
+    const dayOfMonth = targetDate.getDate();
+
+    let matches = false;
+    if (recurrenceType === 'diaria') {
+      matches = true;
+    } else if (recurrenceType === 'segunda_sexta') {
+      matches = dayOfWeek >= 1 && dayOfWeek <= 5;
+    } else if (recurrenceType === 'semanal') {
+      matches = dayOfWeek === baseDayOfWeek;
+    } else if (recurrenceType === 'mensal') {
+      matches = dayOfMonth === baseDayOfMonth;
+    } else if (recurrenceType === 'personalizado') {
+      matches = customDays.includes(dayOfWeek);
+    }
+
+    if (matches) {
+      list.push(createLiveTask(dateStr, title, theme, platform, platformCustom, startTime, duration, priority, notes, seriesId, recurrenceType, customDays));
+    }
+  }
+
+  return list;
+}
+
+function createLiveTask(
+  dateStr: string,
+  title: string,
+  theme: string,
+  platform: 'YouTube' | 'Twitch' | 'TikTok' | 'Personalizada',
+  platformCustom: string,
+  startTime: string,
+  duration: number,
+  priority: 'baixa' | 'media' | 'alta',
+  notes: string,
+  seriesId: string,
+  recurrenceType: any,
+  customDays: number[]
+): Task {
+  const platDisplay = platform === 'Personalizada' ? platformCustom : platform;
+  const xp = Math.round(duration * 0.7); // XP proporcional à duração
+  return {
+    id: `live-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+    name: `🔴 Live: ${title}`,
+    category: 'live',
+    priority: priority,
+    estimatedMinutes: duration,
+    dueDate: dateStr, // prazo / data de ocorrência
+    recurrence: 'nao', // padrão para Tasks comuns, mas controlado via propriedades de live
+    difficulty: 'media',
+    xp: xp,
+    notes: notes || `Live sobre ${theme} no ${platDisplay}`,
+    completed: false,
+    scheduledDate: dateStr, // Alocado de forma fixa
+    scheduledTime: startTime, // Horário fixo
+    originSource: 'manual',
+    liveGameOrTheme: theme,
+    livePlatform: platform,
+    livePlatformCustom: platformCustom,
+    liveRecurrence: recurrenceType,
+    liveRecurrenceDays: customDays,
+    liveSeriesId: seriesId
+  };
 }
