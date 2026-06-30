@@ -160,27 +160,12 @@ function getDailyFreeIntervals(
     return [];
   }
 
-  // Atribui prioridades para os horários livres (1 = melhor, 5 = menos preferível)
-  const getPriority = (m: number): number => {
-    if (m >= 1080 && m < 1320) return 1; // Fim de tarde / Noite (18:00 - 22:00)
-    if (m >= 720 && m < 780) return 2;   // Almoço / Pós-aula (12:00 - 13:00)
-    if (m >= 780 && m < 1080) return 3;  // Tarde (13:00 - 18:00)
-    if (m >= 480 && m < 720) return 4;   // Manhã (08:00 - 12:00)
-    return 5;                            // Início do dia (06:00 - 08:00)
-  };
-
-  const prioritizedMinutes = [...unblockedMinutes].sort((a, b) => {
-    const pA = getPriority(a);
-    const pB = getPriority(b);
-    if (pA !== pB) return pA - pB;
-    return a - b;
-  });
+  // Ordena cronologicamente os minutos livres disponíveis (mais cedo primeiro).
+  // Isso evita lacunas artificiais na tarde e agendamento desnecessário à noite se houver tempo livre antes.
+  const chronologicalMinutes = [...unblockedMinutes].sort((a, b) => a - b);
 
   // Filtra apenas o limite de tempo configurado do usuário
-  const selectedMinutes = prioritizedMinutes.slice(0, maxFreeMinutes);
-
-  // Ordena cronologicamente para agrupar em intervalos contínuos
-  selectedMinutes.sort((a, b) => a - b);
+  const selectedMinutes = chronologicalMinutes.slice(0, maxFreeMinutes);
 
   const intervals: { start: number; end: number }[] = [];
   if (selectedMinutes.length > 0) {
